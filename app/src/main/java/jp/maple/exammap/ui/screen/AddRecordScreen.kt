@@ -1,115 +1,132 @@
 package jp.maple.exammap.ui.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import jp.maple.exammap.model.Exam
-import jp.maple.exammap.model.ExamDatePrecision
-import jp.maple.exammap.ui.component.ExamDatePickerField
+import androidx.compose.ui.unit.sp
+import jp.maple.exammap.model.StudyRecord
+import jp.maple.exammap.ui.theme.ColorDark
+import jp.maple.exammap.ui.theme.ColorGrayBg
+import jp.maple.exammap.ui.theme.ColorWhite
+import jp.maple.exammap.ui.theme.OrangeMain
+import jp.maple.exammap.ui.viewmodel.StudyRecordViewModel
+import java.time.LocalDateTime
+import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRecordScreen(
-    exam: Exam,
-    onBackClick: () -> Unit,
-    onRegisterClick: (
-        pastExamId: String,
-        studyDate: String,
-        score: Int,
-        maxScore: Int,
-        passed: Boolean,
-        memo: String
-    ) -> Unit,
-    modifier: Modifier = Modifier
+    examId: String,
+    viewModel: StudyRecordViewModel,
+    onBackClick: () -> Unit
 ) {
-    var pastExamId by rememberSaveable { mutableStateOf("") }
-    var studyDate by rememberSaveable { mutableStateOf("") }
-    var scoreText by rememberSaveable { mutableStateOf("") }
-    var maxScoreText by rememberSaveable { mutableStateOf("") }
-    var passed by rememberSaveable { mutableStateOf(false) }
-    var memo by rememberSaveable { mutableStateOf("") }
+    var scoreText by remember { mutableStateOf("") }
+    var maxScoreText by remember { mutableStateOf("100") }
+    var noteText by remember { mutableStateOf("") }
+    var excludeFromAggregate by remember { mutableStateOf(false) }
 
-    val score = scoreText.toIntOrNull()
-    val maxScore = maxScoreText.toIntOrNull()
-    val canSave = studyDate.isNotBlank() && score != null && maxScore != null && maxScore > 0 && score in 0..maxScore
-
-    Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("学習記録を追加")
-        Text(if (exam.shortName.isNotBlank()) exam.shortName else exam.name)
-
-        OutlinedTextField(
-            value = pastExamId,
-            onValueChange = { pastExamId = it },
-            label = { Text("過去問ID") },
-            placeholder = { Text("例：2025年度") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        ExamDatePickerField(
-            examDate = studyDate,
-            datePrecision = ExamDatePrecision.EXACT,
-            onDateSelected = { studyDate = it }
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = scoreText,
-                onValueChange = { scoreText = it.filter(Char::isDigit) },
-                label = { Text("得点") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("学習記録の追加", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ColorDark) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = ColorDark)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ColorWhite)
             )
+        },
+        containerColor = ColorGrayBg
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = scoreText,
+                    onValueChange = { scoreText = it },
+                    label = { Text("得点") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = maxScoreText,
+                    onValueChange = { maxScoreText = it },
+                    label = { Text("満点") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
             OutlinedTextField(
-                value = maxScoreText,
-                onValueChange = { maxScoreText = it.filter(Char::isDigit) },
-                label = { Text("満点") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
+                value = noteText,
+                onValueChange = { noteText = it },
+                label = { Text("メモ") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("集計から除外する", fontSize = 16.sp, color = ColorDark)
+                    Text("ONにすると全体の進捗率・評価計算から外れます", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                }
+                Switch(
+                    checked = excludeFromAggregate,
+                    onCheckedChange = { excludeFromAggregate = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = OrangeMain,
+                        checkedTrackColor = OrangeMain.copy(alpha = 0.5f)
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = {
+                    val score = scoreText.toIntOrNull() ?: 0
+                    val maxScore = maxScoreText.toIntOrNull() ?: 100
+                    val newRecord = StudyRecord(
+                        id = UUID.randomUUID().toString(),
+                        examId = examId,
+                        date = LocalDateTime.now(),
+                        score = score,
+                        maxScore = maxScore,
+                        note = noteText,
+                        includedInAggregate = !excludeFromAggregate
+                    )
+                    viewModel.addRecord(newRecord)
+                    onBackClick()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = OrangeMain)
+            ) {
+                Text("保存する", color = ColorWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
         }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = passed, onCheckedChange = { passed = it })
-            Text("合格基準を達成")
-        }
-
-        OutlinedTextField(
-            value = memo,
-            onValueChange = { memo = it },
-            label = { Text("メモ") },
-            minLines = 3,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Button(
-            onClick = { onRegisterClick(pastExamId, studyDate, score ?: 0, maxScore ?: 0, passed, memo) },
-            enabled = canSave,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("保存") }
-
-        TextButton(onClick = onBackClick, modifier = Modifier.fillMaxWidth()) { Text("戻る") }
     }
 }

@@ -1,54 +1,67 @@
-package jp.maple.exammap.viewmodel
+package jp.maple.exammap.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import jp.maple.exammap.model.Exam
-import jp.maple.exammap.model.ExamDatePrecision
 import jp.maple.exammap.model.ExamStatus
 import jp.maple.exammap.repository.ExamRepository
-import java.util.UUID
+import jp.maple.exammap.repository.StudyRecordRepository
+import jp.maple.exammap.util.EvaluationBand
+import jp.maple.exammap.util.ProgressCalculator
+import kotlinx.flow.MutableStateFlow
+import kotlinx.flow.StateFlow
+import kotlinx.flow.asStateFlow
+import kotlinx.flow.launchIn
+import kotlinx.flow.onEach
+import java.time.LocalDate
 
-class ExamViewModel : ViewModel() {
-    val exams: List<Exam> get() = ExamRepository.exams
+class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
-    fun addExam(
-        name: String,
-        shortName: String,
-        examDate: String,
-        datePrecision: ExamDatePrecision
-    ): Boolean {
-        val trimmedName = name.trim()
-        if (trimmedName.isBlank()) return false
-        return ExamRepository.addExam(
-            Exam(
-                id = UUID.randomUUID().toString(),
-                name = trimmedName,
-                shortName = shortName.trim(),
-                examDate = examDate.trim(),
-                datePrecision = datePrecision,
-                status = ExamStatus.PLANNED
-            )
-        )
+    private val _exams = MutableStateFlow<List<Exam>>(emptyList())
+    val exams: StateFlow<List<Exam>> = _exams.asStateFlow()
+
+    init {
+        ExamRepository.init(application)
+        StudyRecordRepository.init(application)
+
+        ExamRepository.examsFlow
+            .onEach { _exams.value = it }
+            .launchIn(viewModelScope)
     }
 
-    fun updateExam(exam: Exam): Boolean {
-        if (exam.name.isBlank()) return false
-        return ExamRepository.updateExam(
-            exam.copy(
-                name = exam.name.trim(),
-                shortName = exam.shortName.trim(),
-                examDate = exam.examDate.trim(),
-                resultDate = exam.resultDate.trim(),
-                progress = exam.progress.coerceIn(0, 100)
-            )
-        )
+    fun addExam(exam: Exam) {
+        ExamRepository.addExam(exam)
     }
 
-    fun setExamResult(exam: Exam, status: ExamStatus): Boolean {
-        if (status != ExamStatus.PASSED && status != ExamStatus.FAILED) return false
-        return updateExam(exam.copy(status = status))
+    fun updateExam(exam: Exam) {
+        ExamRepository.updateExam(exam)
     }
 
-    fun archiveExam(exam: Exam) = ExamRepository.archiveExam(exam.id)
-    fun restoreExam(exam: Exam) = ExamRepository.restoreExam(exam.id)
-    fun findExamById(id: String): Exam? = ExamRepository.findExamById(id)
+    fun deleteExam(id: String) {
+        ExamRepository.deleteExam(id)
+    }
+
+    fun progressFor(examId: String): Int {
+        val r = StudyRecordRepository.recordsForExam(examId)
+        return ProgressCalculator.calcProgress(r)
+    }
+
+    fun evaluationAFor(examId: String): Int = progressFor(examId)
+
+    fun evaluationBFor(examId: String): Int {
+        val r = StudyRecordRepository.recordsForExam(examId)
+        return ProgressCalculator.calcEvaluationB(r, r.size)
+    }
+
+    fun bandFor(examId: String): EvaluationBand =
+        ProgressCalculator.band(progressFor(examId))
+
+    fun getNotificationCount(): Int {
+        val today = LocalDate.now()
+        return _exams.value.count { exam ->
+            val repDate = exam.representativeDate()
+            repDate != null && !repDate.isAfter(today) && exam.status == ExamStatus.PLANNED
+        }
+    }
 }

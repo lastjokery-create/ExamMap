@@ -1,0 +1,23 @@
+<resources>
+    <!--
+        Main application theme.
+        This theme is used by the activity to define the initial look and feel,
+        including the status bar and navigation bar colors.
+    -->
+    <style name="Theme.ExamMap" parent="android:style/Theme.Material.Light.NoActionBar">
+        <!-- Main accent color for the application -->
+        <item name="android:colorAccent">@color/orange_accent</item>
+
+        <!-- Navigation bar color -->
+        <item name="android:navigationBarColor">@color/white</item>
+
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/white</item>
+
+        <!-- Ensure status bar icons are visible on light background -->
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Default font family -->
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+</resources>

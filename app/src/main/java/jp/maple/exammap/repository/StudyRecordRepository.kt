@@ -1,98 +1,81 @@
 package jp.maple.exammap.repository
 
 import android.content.Context
-import androidx.compose.runtime.mutableStateListOf
+import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 import jp.maple.exammap.model.StudyRecord
-import org.json.JSONArray
-import org.json.JSONObject
+import jp.maple.exammap.util.LocalDateTimeAdapter
+import kotlinx.flow.MutableStateFlow
+import kotlinx.flow.StateFlow
+import kotlinx.flow.asStateFlow
+import java.time.LocalDateTime
 
 object StudyRecordRepository {
-    private const val PREFS_NAME = "exam_map_prefs"
-    private const val RECORDS_KEY = "study_records"
+    private const val PREF_NAME = "study_record_prefs"
+    private const val KEY_RECORDS = "key_study_records"
 
-    val records = mutableStateListOf<StudyRecord>()
+    private lateinit var prefs: SharedPreferences
+    private val gson: Gson = GsonBuilder()
+        .registerTypeAdapter(LocalDateTime::class.java, LocalDateTimeAdapter())
+        .create()
 
-    private var appContext: Context? = null
+    private val _recordsFlow = MutableStateFlow<List<StudyRecord>>(emptyList())
+    val recordsFlow: StateFlow<List<StudyRecord>> = _recordsFlow.asStateFlow()
 
-    fun initialize(context: Context) {
-        if (appContext != null) return
-        appContext = context.applicationContext
+    fun init(context: Context) {
+        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         loadRecords()
     }
 
+    private fun loadRecords() {
+        val json = prefs.getString(KEY_RECORDS, null)
+        if (json.isNullOrBlank()) {
+            _recordsFlow.value = emptyList()
+            return
+        }
+        try {
+            val type = object : TypeToken<List<StudyRecord>>() {}.type
+            val list: List<StudyRecord> = gson.fromJson(json, type) ?: emptyList()
+            _recordsFlow.value = list
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _recordsFlow.value = emptyList()
+        }
+    }
+
+    private fun saveRecords(list: List<StudyRecord>) {
+        val json = gson.toJson(list)
+        prefs.edit().putString(KEY_RECORDS, json).apply()
+        _recordsFlow.value = list
+    }
+
     fun addRecord(record: StudyRecord) {
-        records.add(record)
-        saveRecords()
+        val current = _recordsFlow.value.toMutableList()
+        current.add(record)
+        saveRecords(current)
     }
 
     fun updateRecord(record: StudyRecord) {
-        val index = records.indexOfFirst { it.id == record.id }
-        if (index < 0) return
-        records[index] = record
-        saveRecords()
-    }
-
-    fun removeRecord(record: StudyRecord) {
-        records.removeAll { it.id == record.id }
-        saveRecords()
-    }
-
-    fun recordsForExam(examId: String): List<StudyRecord> =
-        records.filter { it.examId == examId }
-
-    fun findById(recordId: String): StudyRecord? =
-        records.firstOrNull { it.id == recordId }
-
-    private fun saveRecords() {
-        val context = appContext ?: return
-        val jsonArray = JSONArray()
-
-        records.forEach { record ->
-            jsonArray.put(
-                JSONObject().apply {
-                    put("id", record.id)
-                    put("examId", record.examId)
-                    put("pastExamId", record.pastExamId)
-                    put("studyDate", record.studyDate)
-                    put("score", record.score)
-                    put("maxScore", record.maxScore)
-                    put("passed", record.passed)
-                    put("memo", record.memo)
-                }
-            )
+        val current = _recordsFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == record.id }
+        if (index != -1) {
+            current[index] = record
+            saveRecords(current)
         }
-
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(RECORDS_KEY, jsonArray.toString())
-            .apply()
     }
 
-    private fun loadRecords() {
-        val context = appContext ?: return
-        val jsonText = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(RECORDS_KEY, null) ?: return
+    fun deleteRecord(id: String) {
+        val current = _recordsFlow.value.filterNot { it.id == id }
+        saveRecords(current)
+    }
 
-        try {
-            val jsonArray = JSONArray(jsonText)
-            records.clear()
+    fun recordsForExam(examId: String): List<StudyRecord> {
+        return _recordsFlow.value.filter { it.examId == examId }
+    }
 
-            for (index in 0 until jsonArray.length()) {
-                val item = jsonArray.getJSONObject(index)
-                val record = StudyRecord(
-                    id = item.optString("id"),
-                    examId = item.optString("examId"),
-                    pastExamId = item.optString("pastExamId"),
-                    studyDate = item.optString("studyDate"),
-                    score = item.optInt("score", 0),
-                    maxScore = item.optInt("maxScore", 0),
-                    passed = item.optBoolean("passed", false),
-                    memo = item.optString("memo")
-                )
-                if (record.id.isNotBlank() && record.examId.isNotBlank()) records.add(record)
-            }
-        } catch (_: Exception) {
-            records.clear()
-        }
+    fun getRecordById(id: String): StudyRecord? {
+        return _recordsFlow.value.find { it.id == id }
     }
 }

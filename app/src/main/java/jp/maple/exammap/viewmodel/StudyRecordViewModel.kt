@@ -1,66 +1,36 @@
-package jp.maple.exammap.viewmodel
+package jp.maple.exammap.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import jp.maple.exammap.model.StudyRecord
 import jp.maple.exammap.repository.StudyRecordRepository
-import java.util.UUID
+import kotlinx.flow.StateFlow
 
-class StudyRecordViewModel : ViewModel() {
-    val records: List<StudyRecord>
-        get() = StudyRecordRepository.records
+class StudyRecordViewModel(application: Application) : AndroidViewModel(application) {
 
-    fun addRecord(
-        examId: String,
-        pastExamId: String,
-        studyDate: String,
-        score: Int,
-        maxScore: Int,
-        passed: Boolean,
-        memo: String
-    ) {
-        if (examId.isBlank() || studyDate.isBlank() || maxScore <= 0) return
+    val records: StateFlow<List<StudyRecord>> = StudyRecordRepository.recordsFlow
 
-        StudyRecordRepository.addRecord(
-            StudyRecord(
-                id = UUID.randomUUID().toString(),
-                examId = examId,
-                pastExamId = pastExamId.trim(),
-                studyDate = studyDate.trim(),
-                score = score.coerceIn(0, maxScore),
-                maxScore = maxScore,
-                passed = passed,
-                memo = memo.trim()
-            )
-        )
+    init {
+        StudyRecordRepository.init(application)
     }
 
-    fun updateRecord(
-        original: StudyRecord,
-        pastExamId: String,
-        studyDate: String,
-        score: Int,
-        maxScore: Int,
-        passed: Boolean,
-        memo: String
-    ) {
-        if (studyDate.isBlank() || maxScore <= 0) return
-
-        StudyRecordRepository.updateRecord(
-            original.copy(
-                pastExamId = pastExamId.trim(),
-                studyDate = studyDate.trim(),
-                score = score.coerceIn(0, maxScore),
-                maxScore = maxScore,
-                passed = passed,
-                memo = memo.trim()
-            )
-        )
+    fun addRecord(record: StudyRecord) {
+        StudyRecordRepository.addRecord(record)
     }
 
-    fun findRecordById(recordId: String): StudyRecord? =
-        StudyRecordRepository.findById(recordId)
+    fun updateRecord(record: StudyRecord) {
+        StudyRecordRepository.updateRecord(record)
+    }
 
-    fun deleteRecord(record: StudyRecord) {
-        StudyRecordRepository.removeRecord(record)
+    fun deleteRecord(id: String) {
+        StudyRecordRepository.deleteRecord(id)
+    }
+
+    fun recordsForExam(examId: String): List<StudyRecord> {
+        return StudyRecordRepository.recordsForExam(examId)
+    }
+
+    fun getRecordById(id: String): StudyRecord? {
+        return StudyRecordRepository.getRecordById(id)
     }
 }

@@ -1,226 +1,143 @@
 package jp.maple.exammap.ui.screen
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import jp.maple.exammap.model.Exam
-import jp.maple.exammap.model.RecordSortOrder
+import androidx.compose.ui.unit.sp
 import jp.maple.exammap.model.StudyRecord
+import jp.maple.exammap.ui.theme.ColorDark
+import jp.maple.exammap.ui.theme.ColorGrayBg
+import jp.maple.exammap.ui.theme.ColorWhite
+import jp.maple.exammap.ui.theme.OrangeMain
+import jp.maple.exammap.ui.viewmodel.StudyRecordViewModel
+import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LearningScreen(
-    exams: List<Exam>,
-    records: List<StudyRecord>,
-    onAddRecordClick: (Exam) -> Unit,
-    onRecordClick: (StudyRecord) -> Unit,
-    modifier: Modifier = Modifier
+    viewModel: StudyRecordViewModel,
+    onRecordClick: (String) -> Unit
 ) {
-    var selectedExamId by rememberSaveable { mutableStateOf<String?>(null) }
-    var sortOrderName by rememberSaveable { mutableStateOf(RecordSortOrder.DATE_DESC.name) }
-    var examMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    val records by viewModel.records.collectAsState()
 
-    val examMap = exams.associateBy { it.id }
-    val selectedSort = RecordSortOrder.entries.firstOrNull { it.name == sortOrderName }
-        ?: RecordSortOrder.DATE_DESC
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("学習記録一覧", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ColorDark) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ColorWhite)
+            )
+        },
+        containerColor = ColorGrayBg
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item { Spacer(modifier = Modifier.height(8.dp)) }
 
-    val filteredRecords = records
-        .filter { selectedExamId == null || it.examId == selectedExamId }
-        .let { source ->
-            when (selectedSort) {
-                RecordSortOrder.DATE_DESC -> source.sortedByDescending { it.studyDate }
-                RecordSortOrder.DATE_ASC -> source.sortedBy { it.studyDate }
-                RecordSortOrder.PERCENT_DESC -> source.sortedByDescending { it.percentage }
-                RecordSortOrder.PERCENT_ASC -> source.sortedBy { it.percentage }
+            items(records) { record ->
+                RecordItemCard(
+                    record = record,
+                    onClick = { onRecordClick(record.id) }
+                )
             }
-        }
 
-    val recordCount = filteredRecords.size
-    val averagePercentage = if (recordCount == 0) 0 else filteredRecords.sumOf { it.percentage } / recordCount
-    val passRate = if (recordCount == 0) 0 else filteredRecords.count { it.passed } * 100 / recordCount
-    val highestPercentage = filteredRecords.maxOfOrNull { it.percentage } ?: 0
-    val lowestPercentage = filteredRecords.minOfOrNull { it.percentage } ?: 0
-
-    LazyColumn(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("学習分析", style = MaterialTheme.typography.headlineMedium)
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StatisticCard("実施回数", "${recordCount}回", Modifier.weight(1f))
-                StatisticCard("平均正答率", "${averagePercentage}%", Modifier.weight(1f))
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StatisticCard("基準達成率", "${passRate}%", Modifier.weight(1f))
-                StatisticCard("最高 / 最低", "${highestPercentage}% / ${lowestPercentage}%", Modifier.weight(1f))
-            }
-        }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("表示条件", style = MaterialTheme.typography.titleMedium)
-
-                OutlinedButton(
-                    onClick = { examMenuExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val selectedExam = selectedExamId?.let(examMap::get)
-                    Text(
-                        selectedExam?.shortName?.takeIf { it.isNotBlank() }
-                            ?: selectedExam?.name
-                            ?: "すべての試験"
-                    )
-                }
-                DropdownMenu(
-                    expanded = examMenuExpanded,
-                    onDismissRequest = { examMenuExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("すべての試験") },
-                        onClick = {
-                            selectedExamId = null
-                            examMenuExpanded = false
-                        }
-                    )
-                    exams.forEach { exam ->
-                        DropdownMenuItem(
-                            text = { Text(exam.shortName.takeIf { it.isNotBlank() } ?: exam.name) },
-                            onClick = {
-                                selectedExamId = exam.id
-                                examMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = { sortMenuExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(selectedSort.label)
-                }
-                DropdownMenu(
-                    expanded = sortMenuExpanded,
-                    onDismissRequest = { sortMenuExpanded = false }
-                ) {
-                    RecordSortOrder.entries.forEach { order ->
-                        DropdownMenuItem(
-                            text = { Text(order.label) },
-                            onClick = {
-                                sortOrderName = order.name
-                                sortMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            Text("記録を追加", style = MaterialTheme.typography.titleLarge)
-        }
-
-        if (exams.isEmpty()) {
-            item { Text("先に試験を登録してください") }
-        } else {
-            items(exams, key = { "add_${it.id}" }) { exam ->
-                Button(
-                    onClick = { onAddRecordClick(exam) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("${exam.shortName.takeIf { it.isNotBlank() } ?: exam.name}に記録")
-                }
-            }
-        }
-
-        item {
-            Text("履歴", style = MaterialTheme.typography.titleLarge)
-        }
-
-        if (filteredRecords.isEmpty()) {
-            item { Text("条件に一致する学習記録はありません") }
-        } else {
-            items(filteredRecords, key = { it.id }) { record ->
-                val exam = examMap[record.examId]
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onRecordClick(record) }
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            exam?.shortName?.takeIf { it.isNotBlank() }
-                                ?: exam?.name
-                                ?: "削除済み試験",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(record.studyDate)
-                            Text("${record.score}/${record.maxScore}（${record.percentage}%）")
-                        }
-                        if (record.pastExamId.isNotBlank()) Text(record.pastExamId)
-                        Text(if (record.passed) "★ 基準達成" else "- 未達")
-                        if (record.memo.isNotBlank()) Text(record.memo)
-                        Text("タップして編集", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }
 
 @Composable
-private fun StatisticCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
+fun RecordItemCard(
+    record: StudyRecord,
+    onClick: () -> Unit
 ) {
-    Card(modifier = modifier) {
+    val alphaValue = if (record.includedInAggregate) 1.0f else 0.55f
+    val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(alphaValue)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = ColorWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = record.date.format(formatter),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+
+                if (!record.includedInAggregate) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF5F5F5)
+                    ) {
+                        Text(
+                            text = "除外",
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${record.score} / ${record.maxScore}",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorDark
+                )
+                Text(
+                    text = "${record.percentage}%",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OrangeMain
+                )
+            }
+
+            if (record.note.isNotBlank()) {
+                Text(
+                    text = record.note,
+                    fontSize = 13.sp,
+                    color = ColorDark
+                )
+            }
         }
     }
 }

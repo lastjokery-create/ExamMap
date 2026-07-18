@@ -1,87 +1,64 @@
 package jp.maple.exammap.ui.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import jp.maple.exammap.model.Exam
-import jp.maple.exammap.model.ExamStatus
+import androidx.compose.ui.unit.sp
 import jp.maple.exammap.ui.component.ExamCard
+import jp.maple.exammap.ui.theme.*
+import jp.maple.exammap.ui.viewmodel.ExamViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamListScreen(
-    exams: List<Exam>,
-    onAddExamClick: () -> Unit,
-    onExamClick: (Exam) -> Unit,
-    onAcquiredQualificationsClick: () -> Unit,
-    onArchiveClick: () -> Unit
+    viewModel: ExamViewModel,
+    onExamClick: (String) -> Unit
 ) {
-    val visibleExams = exams
-        .filter { it.status == ExamStatus.PLANNED || it.status == ExamStatus.FAILED }
-        .sortedWith(compareBy<Exam> { it.displayOrder }.thenBy { it.name })
+    val exams by viewModel.exams.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("試験") }) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddExamClick) { Text("＋") }
-        }
-    ) { innerPadding ->
+        topBar = {
+            TopAppBar(
+                title = { Text("試験一覧", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = ColorDark) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ColorWhite)
+            )
+        },
+        containerColor = ColorGrayBg
+    ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = onAcquiredQualificationsClick,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("取得済み資格")
-                    }
-                    OutlinedButton(
-                        onClick = onArchiveClick,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("アーカイブ")
-                    }
-                }
-            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+            itemsIndexed(exams) { index, exam ->
+                val colorIndex = index % 5
+                val accentColor = AccentColors[colorIndex]
+                val accentBadgeBg = AccentBadgeBg[colorIndex]
+                val progress = viewModel.progressFor(exam.id)
 
-            if (visibleExams.isEmpty()) {
-                item {
-                    Text(
-                        text = "登録中の試験はありません",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            } else {
-                items(visibleExams, key = { it.id }) { exam ->
-                    ExamCard(
-                        examName = exam.name,
-                        shortName = exam.shortName,
-                        date = exam.examDate,
-                        datePrecision = exam.datePrecision,
-                        status = exam.status,
-                        progress = exam.progress,
-                        onClick = { onExamClick(exam) }
-                    )
-                }
+                ExamCard(
+                    exam = exam,
+                    accentColor = accentColor,
+                    accentBadgeBg = accentBadgeBg,
+                    progress = progress,
+                    onCardClick = { onExamClick(exam.id) }
+                )
             }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }

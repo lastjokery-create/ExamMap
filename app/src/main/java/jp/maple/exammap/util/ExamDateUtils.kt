@@ -34,7 +34,7 @@ object ExamDateUtils {
                     date.format(exactFormatter)
                 }
 
-                ExamDatePrecision.MONTH -> {
+                ExamDatePrecision.MONTH_ONLY -> {
                     val yearMonth = YearMonth.parse(
                         examDate,
                         monthFormatter
@@ -113,7 +113,7 @@ object ExamDateUtils {
                     )
                 }
 
-                ExamDatePrecision.MONTH -> {
+                ExamDatePrecision.MONTH_ONLY -> {
                     YearMonth.parse(
                         examDate,
                         monthFormatter
